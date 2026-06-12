@@ -24,21 +24,20 @@ export const Parameters = Schema.Struct({
   }),
 })
 
-const WebSearchProviderSchema = Schema.Literals(["exa", "parallel"])
+const WebSearchProviderSchema = Schema.Literals(["brave"])
 export type WebSearchProvider = Schema.Schema.Type<typeof WebSearchProviderSchema>
 
-export function selectWebSearchProvider(sessionID: string, flags = { exa: false, parallel: false }): WebSearchProvider {
+export function selectWebSearchProvider(sessionID: string): WebSearchProvider {
   const override = process.env.OPENCODE_WEBSEARCH_PROVIDER
-  if (override === "exa" || override === "parallel") return override
-  if (flags.parallel) return "parallel"
-  if (flags.exa) return "exa"
+  if (override === "brave") return override
 
-  return Number.parseInt(checksum(sessionID) ?? "0", 36) % 2 === 0 ? "exa" : "parallel"
+  return "brave"
 }
 
 export function webSearchProviderLabel(provider: unknown) {
   if (provider === "parallel") return "Parallel Web Search"
   if (provider === "exa") return "Exa Web Search"
+  if (provider === "brave") return "Brave Search"
   return "Web Search"
 }
 
@@ -63,6 +62,10 @@ function callProvider(
   params: Schema.Schema.Type<typeof Parameters>,
   ctx: Tool.Context,
 ) {
+  if (provider === "brave") {
+    return McpWebSearch.callBrave(http, params.query, params.numResults ?? 8)
+  }
+
   if (provider === "parallel") {
     return McpWebSearch.call(
       http,
@@ -100,7 +103,6 @@ export const WebSearchTool = Tool.define(
   "websearch",
   Effect.gen(function* () {
     const http = yield* HttpClient.HttpClient
-    const flags = yield* RuntimeFlags.Service
 
     return {
       get description() {
@@ -109,28 +111,22 @@ export const WebSearchTool = Tool.define(
       parameters: Parameters,
       execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
-          const provider = selectWebSearchProvider(ctx.sessionID, {
-            exa: flags.enableExa,
-            parallel: flags.enableParallel,
-          })
+          const provider: WebSearchProvider = "brave"
           const title = webSearchProviderLabel(provider)
           yield* ctx.metadata({ title: `${title} "${params.query}"`, metadata: { provider } })
 
           yield* ctx.ask({
             permission: "websearch",
             patterns: [params.query],
-            always: ["*"],
             metadata: {
               query: params.query,
               numResults: params.numResults,
-              livecrawl: params.livecrawl,
-              type: params.type,
-              contextMaxCharacters: params.contextMaxCharacters,
               provider,
+              providerUrl: McpWebSearch.BRAVE_URL,
             },
           })
 
-          const result = yield* callProvider(http, provider, params, ctx)
+          const result = yield* McpWebSearch.callBrave(http, params.query, params.numResults ?? 8)
 
           return {
             output: result ?? "No search results found. Please try a different query.",

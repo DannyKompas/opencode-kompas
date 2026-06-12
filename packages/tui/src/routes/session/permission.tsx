@@ -318,15 +318,32 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
 
             if (permission === "websearch") {
               const query = typeof data.query === "string" ? data.query : ""
+              const providerUrl = typeof data.providerUrl === "string" ? data.providerUrl : ""
+              let hostname = ""
+              try {
+                hostname = providerUrl ? new URL(providerUrl).hostname : ""
+              } catch {
+                hostname = providerUrl
+              }
               return {
                 icon: "◈",
                 title: `${webSearchProviderLabel(data.provider)} "${query}"`,
                 body: (
-                  <Show when={query}>
-                    <box paddingLeft={1}>
-                      <text fg={theme.textMuted}>{"Query: " + query}</text>
+                  <>
+                    <Show when={query}>
+                      <box paddingLeft={1}>
+                        <text fg={theme.textMuted}>{"Query: " + query}</text>
+                      </box>
+                    </Show>
+                    <Show when={hostname}>
+                      <box paddingLeft={1}>
+                        <text fg={theme.textMuted}>{"External search service: " + hostname}</text>
+                      </box>
+                    </Show>
+                    <box paddingLeft={1} paddingTop={1}>
+                      <text fg={theme.warning}>{"⚠ Your query will be sent to an external service."}</text>
                     </box>
-                  </Show>
+                  </>
                 ),
               }
             }

@@ -5,6 +5,8 @@ export const EXA_URL = process.env.EXA_API_KEY
   ? `https://mcp.exa.ai/mcp?exaApiKey=${encodeURIComponent(process.env.EXA_API_KEY)}`
   : "https://mcp.exa.ai/mcp"
 export const PARALLEL_URL = "https://search.parallel.ai/mcp"
+export const BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
+export const BRAVE_API_KEY = process.env.BRAVE_SEARCH_API_KEY
 
 const McpResult = Schema.Struct({
   result: Schema.Struct({
@@ -93,4 +95,63 @@ export const call = <F extends Schema.Struct.Fields>(
       )
     const body = yield* response.text
     return yield* parseResponse(body)
+  })
+
+const BraveSearchResult = Schema.Struct({
+  web: Schema.optional(
+    Schema.Struct({
+      results: Schema.Array(
+        Schema.Struct({
+          title: Schema.String,
+          url: Schema.String,
+          description: Schema.String,
+        }),
+      ),
+    }),
+  ),
+})
+
+export const callBrave = (
+  http: HttpClient.HttpClient,
+  query: string,
+  count: number = 8,
+) =>
+  Effect.gen(function* () {
+    const apiKey = process.env.BRAVE_SEARCH_API_KEY
+    if (!apiKey) {
+      return yield* Effect.fail(new Error("BRAVE_SEARCH_API_KEY not configured"))
+    }
+
+    const params = new URLSearchParams({
+      q: query,
+      count: String(count),
+    })
+
+    const request = yield* HttpClientRequest.get(`${BRAVE_URL}?${params}`).pipe(
+      HttpClientRequest.accept("application/json"),
+      HttpClientRequest.setHeader("X-Subscription-Token", apiKey),
+    )
+
+    const response = yield* HttpClient.filterStatusOk(http)
+      .execute(request)
+      .pipe(
+        Effect.timeoutOrElse({
+          duration: { seconds: 25 },
+          orElse: () => Effect.die(new Error("Brave search request timed out")),
+        }),
+      )
+
+    const body = yield* response.json
+    const parsed = yield* Schema.decodeUnknown(BraveSearchResult)(body)
+
+    const results = parsed.web?.results ?? []
+    if (results.length === 0) {
+      return undefined
+    }
+
+    const formatted = results
+      .map((r) => `[${r.title}](${r.url}): ${r.description}`)
+      .join("\n\n")
+
+    return formatted
   })
