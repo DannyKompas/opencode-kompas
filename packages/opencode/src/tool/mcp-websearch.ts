@@ -6,7 +6,7 @@ export const EXA_URL = process.env.EXA_API_KEY
   : "https://mcp.exa.ai/mcp"
 export const PARALLEL_URL = "https://search.parallel.ai/mcp"
 export const BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
-export const BRAVE_API_KEY = process.env.BRAVE_SEARCH_API_KEY
+export const BRAVE_SEARCH_API_KEY = process.env.BRAVE_SEARCH_API_KEY
 
 const McpResult = Schema.Struct({
   result: Schema.Struct({
