@@ -8,7 +8,9 @@
   </a>
 </p>
 <p align="center">The open source AI coding agent.</p>
-<p align="center">
+
+> [!NOTE]
+> This is the **Kompas fork** of OpenCode, hardened for enterprise use with Bedrock-only enforcement, Brave Search, and additional security controls.
   <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
   <a href="https://www.npmjs.com/package/opencode-ai"><img alt="npm" src="https://img.shields.io/npm/v/opencode-ai?style=flat-square" /></a>
   <a href="https://github.com/anomalyco/opencode/actions/workflows/publish.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/publish.yml?style=flat-square&branch=dev" /></a>
@@ -63,6 +65,38 @@ nix run nixpkgs#opencode           # or github:anomalyco/opencode for latest dev
 
 > [!TIP]
 > Remove versions older than 0.1.x before installing.
+
+### Enterprise Configuration
+
+This fork includes security hardening for enterprise deployment. Create a `.env` file in your project root:
+
+```bash
+# Required: AWS Bedrock credentials
+AWS_BEARER_TOKEN_BEDROCK=your_bedrock_token_here
+
+# Optional: Brave Search API (required for web search)
+BRAVE_SEARCH_API_KEY=your_brave_api_key
+```
+
+**Security Features:**
+
+- **Bedrock-only models** - Only Amazon Bedrock models are available via `enabled_providers` config
+- **Code-level enforcement** - Provider whitelist is hard-coded in the binary for defense-in-depth
+- **Web search denied by default** - Requires explicit permission each time
+- **Session sharing disabled** - All session sharing is blocked via config
+- **External service warnings** - Permission prompts show the external service hostname with data disclosure warnings
+
+The default `.opencode/opencode.jsonc` configuration enforces these restrictions:
+
+```json
+{
+  "enabled_providers": ["amazon-bedrock"],
+  "share": "disabled",
+  "permission": {
+    "websearch": "deny"
+  }
+}
+```
 
 ### Desktop App (BETA)
 
