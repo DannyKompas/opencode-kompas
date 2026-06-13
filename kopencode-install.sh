@@ -48,10 +48,15 @@ add_to_path() {
     local config_file="${HOME}/.zshrc"
     local path_line="export PATH=\"\${HOME}/.local/bin:\${PATH}\""
     local env_line="export OPENCODE_DISABLE_AUTOUPDATE=1"
-    local source_env_line="[ -f \"\${HOME}/.config/kopencode/.env\" ] && source \"\${HOME}/.config/kopencode/.env\""
+    local source_env_line="[ -f \"\${HOME}/.config/kopencode/.env\" ] && { set -a; source \"\${HOME}/.config/kopencode/.env\"; set +a; }"
 
     if grep -qF -- "$env_line" "$config_file" 2>/dev/null; then
-        echo "Environment already configured in ${config_file}"
+        if ! grep -qF -- "$source_env_line" "$config_file" 2>/dev/null; then
+            echo "$source_env_line" >> "$config_file"
+            echo "Added env source line to ${config_file}"
+        else
+            echo "Environment already configured in ${config_file}"
+        fi
         return
     fi
 
