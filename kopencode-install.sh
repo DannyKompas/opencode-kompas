@@ -46,6 +46,7 @@ add_to_path() {
     local config_file="${HOME}/.zshrc"
     local path_line="export PATH=\"\${HOME}/.local/bin:\${PATH}\""
     local env_line="export OPENCODE_DISABLE_AUTOUPDATE=1"
+    local source_env_line="[ -f \"\${HOME}/.config/kopencode/.env\" ] && source \"\${HOME}/.config/kopencode/.env\""
 
     if grep -qF -- "$env_line" "$config_file" 2>/dev/null; then
         echo "Environment already configured in ${config_file}"
@@ -57,6 +58,8 @@ add_to_path() {
     
     if [ -n "$line_num" ]; then
         sed -i '' "${line_num}a\\$env_line" "$config_file"
+        line_num=$((line_num + 1))
+        sed -i '' "${line_num}a\\$source_env_line" "$config_file"
         echo "Added OPENCODE_DISABLE_AUTOUPDATE to ${config_file}"
         echo ""
         echo "Run: source ~/.zshrc"
@@ -65,6 +68,7 @@ add_to_path() {
         echo "# kopencode (forked from opencode)" >> "$config_file"
         echo "$path_line" >> "$config_file"
         echo "$env_line" >> "$config_file"
+        echo "$source_env_line" >> "$config_file"
         echo "Added kopencode to PATH in ${config_file}"
         echo ""
         echo "Run: source ~/.zshrc"
@@ -73,6 +77,9 @@ add_to_path() {
 
 add_env_vars() {
     local config_file="${HOME}/.zshrc"
+    local env_file="${HOME}/.config/kopencode/.env"
+    
+    mkdir -p "${HOME}/.config/kopencode"
     
     # Source existing env vars from config file (only export statements)
     if [ -f "$config_file" ]; then
@@ -90,13 +97,17 @@ add_env_vars() {
         echo "Enter your Brave Search API key (or press Enter to skip):"
         read -r brave_key
         if [ -n "$brave_key" ]; then
-            local brave_line="export BRAVE_SEARCH_API_KEY=\"${brave_key}\""
-            if ! grep -qF -- "$brave_line" "$config_file" 2>/dev/null; then
-                echo "$brave_line" >> "$config_file"
-                echo "Added BRAVE_SEARCH_API_KEY to ${config_file}"
-            fi
             export BRAVE_SEARCH_API_KEY="$brave_key"
         fi
+    fi
+
+    if [ -n "$brave_key" ]; then
+        if grep -q "^BRAVE_SEARCH_API_KEY=" "$env_file" 2>/dev/null; then
+            sed -i '' "s|^BRAVE_SEARCH_API_KEY=.*|BRAVE_SEARCH_API_KEY=${brave_key}|" "$env_file"
+        else
+            echo "BRAVE_SEARCH_API_KEY=${brave_key}" >> "$env_file"
+        fi
+        echo "Written BRAVE_SEARCH_API_KEY to ${env_file}"
     fi
 
     local bedrock_token="${AWS_BEARER_TOKEN_BEDROCK:-}"
@@ -106,17 +117,10 @@ add_env_vars() {
         echo "Enter your AWS Bedrock Bearer Token (or press Enter to skip):"
         read -r bedrock_token
         if [ -n "$bedrock_token" ]; then
-            local bedrock_line="export AWS_BEARER_TOKEN_BEDROCK=\"${bedrock_token}\""
-            if ! grep -qF -- "$bedrock_line" "$config_file" 2>/dev/null; then
-                echo "$bedrock_line" >> "$config_file"
-                echo "Added AWS_BEARER_TOKEN_BEDROCK to ${config_file}"
-            fi
             export AWS_BEARER_TOKEN_BEDROCK="$bedrock_token"
         fi
     fi
 
-    # Write bearer token to .env so the binary picks it up regardless of shell state
-    local env_file="${SCRIPT_DIR}/.env"
     if [ -n "$bedrock_token" ]; then
         if grep -q "^AWS_BEARER_TOKEN_BEDROCK=" "$env_file" 2>/dev/null; then
             sed -i '' "s|^AWS_BEARER_TOKEN_BEDROCK=.*|AWS_BEARER_TOKEN_BEDROCK=${bedrock_token}|" "$env_file"
