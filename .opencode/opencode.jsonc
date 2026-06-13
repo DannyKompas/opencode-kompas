@@ -3,7 +3,10 @@
   "enabled_providers": ["amazon-bedrock"],
   "share": "disabled",
   "provider": {},
-  "permission": {},
+  "permission": {
+    "websearch": "ask",
+    "edit": "ask",
+  },
   "references": {
     "effect": {
       "repository": "github.com/Effect-TS/effect-smol",

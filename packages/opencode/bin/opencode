@@ -5,20 +5,6 @@ const fs = require("fs")
 const path = require("path")
 const os = require("os")
 
-const envPath = path.join(process.cwd(), ".env")
-if (fs.existsSync(envPath)) {
-  const envContent = fs.readFileSync(envPath, "utf8")
-  for (const line of envContent.split("\n")) {
-    const match = line.match(/^([^=]+)=(.*)$/)
-    if (match) {
-      const [, key, value] = match
-      if (!process.env[key.trim()]) {
-        process.env[key.trim()] = value.trim().replace(/^['"]|['"]$/g, "")
-      }
-    }
-  }
-}
-
 const forwardedSignals = ["SIGINT", "SIGTERM", "SIGHUP"]
 
 function run(target) {

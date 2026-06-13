@@ -1,0 +1,53 @@
+diff --git a/packages/tui/src/routes/session/permission.tsx b/packages/tui/src/routes/session/permission.tsx
+index c787a84a8..bb04c6ebc 100644
+--- a/packages/tui/src/routes/session/permission.tsx
++++ b/packages/tui/src/routes/session/permission.tsx
+@@ -318,15 +318,32 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
+ 
+             if (permission === "websearch") {
+               const query = typeof data.query === "string" ? data.query : ""
++              const providerUrl = typeof data.providerUrl === "string" ? data.providerUrl : ""
++              let hostname = ""
++              try {
++                hostname = providerUrl ? new URL(providerUrl).hostname : ""
++              } catch {
++                hostname = providerUrl
++              }
+               return {
+                 icon: "◈",
+                 title: `${webSearchProviderLabel(data.provider)} "${query}"`,
+                 body: (
+-                  <Show when={query}>
+-                    <box paddingLeft={1}>
+-                      <text fg={theme.textMuted}>{"Query: " + query}</text>
++                  <>
++                    <Show when={query}>
++                      <box paddingLeft={1}>
++                        <text fg={theme.textMuted}>{"Query: " + query}</text>
++                      </box>
++                    </Show>
++                    <Show when={hostname}>
++                      <box paddingLeft={1}>
++                        <text fg={theme.textMuted}>{"External search service: " + hostname}</text>
++                      </box>
++                    </Show>
++                    <box paddingLeft={1} paddingTop={1}>
++                      <text fg={theme.warning}>{"⚠ Your query will be sent to an external service."}</text>
+                     </box>
+-                  </Show>
++                  </>
+                 ),
+               }
+             }
+diff --git a/packages/tui/src/util/tool-display.ts b/packages/tui/src/util/tool-display.ts
+index 18e256bd3..0d684ec24 100644
+--- a/packages/tui/src/util/tool-display.ts
++++ b/packages/tui/src/util/tool-display.ts
+@@ -1,6 +1,7 @@
+ export function webSearchProviderLabel(provider: unknown) {
+   if (provider === "parallel") return "Parallel Web Search"
+   if (provider === "exa") return "Exa Web Search"
++  if (provider === "brave") return "Brave Search"
+   return "Web Search"
+ }
+ 

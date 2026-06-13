@@ -141,17 +141,72 @@ add_env_vars() {
     echo "Run: source ~/.zshrc"
 }
 
+apply_patches() {
+    local patches_dir="${SCRIPT_DIR}/patches/kompas"
+    if [ ! -d "$patches_dir" ]; then
+        echo "No patches directory found at $patches_dir, skipping."
+        return
+    fi
+
+    local patches
+    patches=($(ls "${patches_dir}"/*.patch 2>/dev/null | sort))
+    if [ ${#patches[@]} -eq 0 ]; then
+        echo "No patch files found in $patches_dir, skipping."
+        return
+    fi
+
+    echo "Applying ${#patches[@]} Kompas patch(es)..."
+    for patch in "${patches[@]}"; do
+        echo "  Applying $(basename "$patch")..."
+        if ! git apply --check "$patch" 2>/dev/null; then
+            echo "  WARNING: $(basename "$patch") does not apply cleanly (may already be applied or upstream changed)"
+            continue
+        fi
+        git apply "$patch"
+        echo "  Applied $(basename "$patch")"
+    done
+}
+
+update_from_upstream() {
+    local upstream_url="${1:-https://github.com/sst/opencode.git}"
+    local upstream_branch="${2:-dev}"
+
+    echo "Fetching upstream opencode from ${upstream_url}..."
+    if ! git remote get-url upstream >/dev/null 2>&1; then
+        git remote add upstream "$upstream_url"
+        echo "Added upstream remote."
+    fi
+
+    git fetch upstream
+
+    echo "Merging upstream/${upstream_branch}..."
+    git merge "upstream/${upstream_branch}" --no-edit
+
+    echo "Applying Kompas patches on top of upstream..."
+    apply_patches
+
+    echo ""
+    echo "Upstream merge complete. Run with --rebuild to build the updated binary."
+}
+
 main() {
     install_bun
     export PATH="${HOME}/.bun/bin:${PATH}"
 
     force_rebuild=false
+    do_update=false
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --rebuild) force_rebuild=true; shift ;;
+            --update)  do_update=true; shift ;;
             *) shift ;;
         esac
     done
+
+    if [ "$do_update" = true ]; then
+        update_from_upstream
+        force_rebuild=true
+    fi
 
     if [ ! -f "$OUTPUT_BINARY" ] || [ "$force_rebuild" = true ]; then
         build

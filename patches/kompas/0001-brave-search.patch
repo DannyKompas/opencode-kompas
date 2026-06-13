@@ -1,0 +1,230 @@
+diff --git a/packages/opencode/src/tool/mcp-websearch.ts b/packages/opencode/src/tool/mcp-websearch.ts
+index 208924cba..bf360bd8d 100644
+--- a/packages/opencode/src/tool/mcp-websearch.ts
++++ b/packages/opencode/src/tool/mcp-websearch.ts
+@@ -5,6 +5,8 @@ export const EXA_URL = process.env.EXA_API_KEY
+   ? `https://mcp.exa.ai/mcp?exaApiKey=${encodeURIComponent(process.env.EXA_API_KEY)}`
+   : "https://mcp.exa.ai/mcp"
+ export const PARALLEL_URL = "https://search.parallel.ai/mcp"
++export const BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
++export const BRAVE_SEARCH_API_KEY = process.env.BRAVE_SEARCH_API_KEY
+ 
+ const McpResult = Schema.Struct({
+   result: Schema.Struct({
+@@ -94,3 +96,62 @@ export const call = <F extends Schema.Struct.Fields>(
+     const body = yield* response.text
+     return yield* parseResponse(body)
+   })
++
++const BraveSearchResult = Schema.Struct({
++  web: Schema.optional(
++    Schema.Struct({
++      results: Schema.Array(
++        Schema.Struct({
++          title: Schema.String,
++          url: Schema.String,
++          description: Schema.String,
++        }),
++      ),
++    }),
++  ),
++})
++
++export const callBrave = (
++  http: HttpClient.HttpClient,
++  query: string,
++  count: number = 8,
++) =>
++  Effect.gen(function* () {
++    const apiKey = process.env.BRAVE_SEARCH_API_KEY
++    if (!apiKey) {
++      return yield* Effect.fail(new Error("BRAVE_SEARCH_API_KEY not configured"))
++    }
++
++    const params = new URLSearchParams({
++      q: query,
++      count: String(count),
++    })
++
++    const request = HttpClientRequest.get(`${BRAVE_URL}?${params}`).pipe(
++      HttpClientRequest.accept("application/json"),
++      HttpClientRequest.setHeader("X-Subscription-Token", apiKey),
++    )
++
++    const response = yield* HttpClient.filterStatusOk(http)
++      .execute(request)
++      .pipe(
++        Effect.timeoutOrElse({
++          duration: { seconds: 25 },
++          orElse: () => Effect.die(new Error("Brave search request timed out")),
++        }),
++      )
++
++    const body = yield* response.json
++    const parsed = Schema.decodeUnknownSync(BraveSearchResult)(body)
++
++    const results = parsed.web?.results ?? []
++    if (results.length === 0) {
++      return undefined
++    }
++
++    const formatted = results
++      .map((r) => `[${r.title}](${r.url}): ${r.description}`)
++      .join("\n\n")
++
++    return formatted
++  })
+diff --git a/packages/opencode/src/tool/registry.ts b/packages/opencode/src/tool/registry.ts
+index 541d1f4bb..e627646ef 100644
+--- a/packages/opencode/src/tool/registry.ts
++++ b/packages/opencode/src/tool/registry.ts
+@@ -54,7 +54,7 @@ import { ProviderV2 } from "@opencode-ai/core/provider"
+ import { ModelV2 } from "@opencode-ai/core/model"
+ 
+ export function webSearchEnabled(providerID: ProviderV2.ID, flags = { exa: false, parallel: false }) {
+-  return providerID === ProviderV2.ID.opencode || flags.exa || flags.parallel
++  return providerID === ProviderV2.ID.opencode || flags.exa || flags.parallel || Boolean(process.env.BRAVE_SEARCH_API_KEY)
+ }
+ 
+ type TaskDef = Tool.InferDef<typeof TaskTool>
+diff --git a/packages/opencode/src/tool/websearch.ts b/packages/opencode/src/tool/websearch.ts
+index d08ae1d15..25c378b8b 100644
+--- a/packages/opencode/src/tool/websearch.ts
++++ b/packages/opencode/src/tool/websearch.ts
+@@ -3,9 +3,6 @@ import { HttpClient } from "effect/unstable/http"
+ import * as Tool from "./tool"
+ import * as McpWebSearch from "./mcp-websearch"
+ import DESCRIPTION from "./websearch.txt"
+-import { checksum } from "@opencode-ai/core/util/encode"
+-import { InstallationVersion } from "@opencode-ai/core/installation/version"
+-import { RuntimeFlags } from "@/effect/runtime-flags"
+ 
+ export const Parameters = Schema.Struct({
+   query: Schema.String.annotate({ description: "Websearch query" }),
+@@ -24,21 +21,26 @@ export const Parameters = Schema.Struct({
+   }),
+ })
+ 
+-const WebSearchProviderSchema = Schema.Literals(["exa", "parallel"])
++const WebSearchProviderSchema = Schema.Literals(["brave", "exa", "parallel"])
+ export type WebSearchProvider = Schema.Schema.Type<typeof WebSearchProviderSchema>
+ 
+-export function selectWebSearchProvider(sessionID: string, flags = { exa: false, parallel: false }): WebSearchProvider {
++export function selectWebSearchProvider(
++  _sessionID: string,
++  flags?: { exa?: boolean; parallel?: boolean },
++): WebSearchProvider {
+   const override = process.env.OPENCODE_WEBSEARCH_PROVIDER
+-  if (override === "exa" || override === "parallel") return override
+-  if (flags.parallel) return "parallel"
+-  if (flags.exa) return "exa"
++  if (override === "brave") return override
+ 
+-  return Number.parseInt(checksum(sessionID) ?? "0", 36) % 2 === 0 ? "exa" : "parallel"
++  if (flags?.exa) return "exa"
++  if (flags?.parallel) return "parallel"
++
++  return "brave"
+ }
+ 
+ export function webSearchProviderLabel(provider: unknown) {
+   if (provider === "parallel") return "Parallel Web Search"
+   if (provider === "exa") return "Exa Web Search"
++  if (provider === "brave") return "Brave Search"
+   return "Web Search"
+ }
+ 
+@@ -51,56 +53,11 @@ export function webSearchModelName(extra: Tool.Context["extra"]) {
+   return (apiID ?? id)?.slice(0, 100)
+ }
+ 
+-function parallelAuthHeaders() {
+-  const headers = { "User-Agent": `opencode/${InstallationVersion}` }
+-  if (!process.env.PARALLEL_API_KEY) return headers
+-  return { ...headers, Authorization: `Bearer ${process.env.PARALLEL_API_KEY}` }
+-}
+-
+-function callProvider(
+-  http: HttpClient.HttpClient,
+-  provider: WebSearchProvider,
+-  params: Schema.Schema.Type<typeof Parameters>,
+-  ctx: Tool.Context,
+-) {
+-  if (provider === "parallel") {
+-    return McpWebSearch.call(
+-      http,
+-      McpWebSearch.PARALLEL_URL,
+-      "web_search",
+-      McpWebSearch.ParallelSearchArgs,
+-      {
+-        objective: params.query,
+-        search_queries: [params.query],
+-        session_id: ctx.sessionID,
+-        model_name: webSearchModelName(ctx.extra),
+-      },
+-      "25 seconds",
+-      parallelAuthHeaders(),
+-    )
+-  }
+-
+-  return McpWebSearch.call(
+-    http,
+-    McpWebSearch.EXA_URL,
+-    "web_search_exa",
+-    McpWebSearch.SearchArgs,
+-    {
+-      query: params.query,
+-      type: params.type || "auto",
+-      numResults: params.numResults || 8,
+-      livecrawl: params.livecrawl || "fallback",
+-      contextMaxCharacters: params.contextMaxCharacters,
+-    },
+-    "25 seconds",
+-  )
+-}
+ 
+ export const WebSearchTool = Tool.define(
+   "websearch",
+   Effect.gen(function* () {
+     const http = yield* HttpClient.HttpClient
+-    const flags = yield* RuntimeFlags.Service
+ 
+     return {
+       get description() {
+@@ -109,28 +66,27 @@ export const WebSearchTool = Tool.define(
+       parameters: Parameters,
+       execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context) =>
+         Effect.gen(function* () {
+-          const provider = selectWebSearchProvider(ctx.sessionID, {
+-            exa: flags.enableExa,
+-            parallel: flags.enableParallel,
+-          })
++          const provider: WebSearchProvider = "brave"
+           const title = webSearchProviderLabel(provider)
+           yield* ctx.metadata({ title: `${title} "${params.query}"`, metadata: { provider } })
+ 
+           yield* ctx.ask({
+             permission: "websearch",
+             patterns: [params.query],
+-            always: ["*"],
++            always: [params.query],
+             metadata: {
+               query: params.query,
+               numResults: params.numResults,
+-              livecrawl: params.livecrawl,
+-              type: params.type,
+-              contextMaxCharacters: params.contextMaxCharacters,
+               provider,
++              providerUrl: McpWebSearch.BRAVE_URL,
+             },
+           })
+ 
+-          const result = yield* callProvider(http, provider, params, ctx)
++          const result = yield* McpWebSearch.callBrave(http, params.query, params.numResults ?? 8).pipe(
++            Effect.catch((err: unknown) =>
++              Effect.succeed(`Search unavailable: ${err instanceof Error ? err.message : "unknown error"}`),
++            ),
++          )
+ 
+           return {
+             output: result ?? "No search results found. Please try a different query.",

@@ -1,0 +1,38 @@
+diff --git a/packages/opencode/src/provider/provider.ts b/packages/opencode/src/provider/provider.ts
+index 86515068d..ae8a144c1 100644
+--- a/packages/opencode/src/provider/provider.ts
++++ b/packages/opencode/src/provider/provider.ts
+@@ -330,13 +330,27 @@ function custom(dep: CustomDep): Record<string, CustomLoader> {
+         region: defaultRegion,
+       }
+ 
+-      // Only use credential chain if no bearer token exists
+-      // Bearer token takes precedence over credential chain (profiles, access keys, IAM roles, web identity tokens)
+-      if (!awsBearerToken && !configApiKey) {
+-        // Build credential provider options (only pass profile if specified)
++      if (awsBearerToken) {
++        // Pass bearer token explicitly as apiKey so the SDK uses it directly
++        // rather than relying on it being present in process.env at factory call time
++        providerOptions.apiKey = awsBearerToken
++      } else if (!configApiKey) {
++        // Only use credential chain if no bearer token or explicit api key exists
+         const credentialProviderOptions = profile ? { profile } : {}
+-
+-        providerOptions.credentialProvider = fromNodeProviderChain(credentialProviderOptions)
++        const chainProvider = fromNodeProviderChain(credentialProviderOptions)
++        providerOptions.credentialProvider = async () => {
++          try {
++            return await chainProvider()
++          } catch (e: any) {
++            const orig = e instanceof Error ? e.message : String(e)
++            throw new Error(
++              "AWS_BEARER_TOKEN_BEDROCK is not set in this shell.\n" +
++                "If you added it via kopencode-install.sh, run: source ~/.zshrc\n" +
++                "Or open a new terminal before running kopencode.\n\n" +
++                orig,
++            )
++          }
++        }
+       }
+ 
+       // Add custom endpoint if specified (endpoint takes precedence over baseURL)
