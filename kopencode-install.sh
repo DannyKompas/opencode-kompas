@@ -71,6 +71,65 @@ add_to_path() {
     fi
 }
 
+add_env_vars() {
+    local config_file="${HOME}/.zshrc"
+    
+    # Source existing env vars from config file (only export statements)
+    if [ -f "$config_file" ]; then
+        while IFS= read -r line; do
+            if [[ "$line" == export\ * ]]; then
+                eval "$line" 2>/dev/null || true
+            fi
+        done < <(grep -E "^export " "$config_file" 2>/dev/null || true)
+    fi
+
+    local brave_key="${BRAVE_SEARCH_API_KEY:-}"
+    if [ -n "$brave_key" ]; then
+        echo "BRAVE_SEARCH_API_KEY already set"
+    else
+        echo "Enter your Brave Search API key (or press Enter to skip):"
+        read -r brave_key
+        if [ -n "$brave_key" ]; then
+            local brave_line="export BRAVE_SEARCH_API_KEY=\"${brave_key}\""
+            if ! grep -qF -- "$brave_line" "$config_file" 2>/dev/null; then
+                echo "$brave_line" >> "$config_file"
+                echo "Added BRAVE_SEARCH_API_KEY to ${config_file}"
+            fi
+            export BRAVE_SEARCH_API_KEY="$brave_key"
+        fi
+    fi
+
+    local bedrock_token="${AWS_BEARER_TOKEN_BEDROCK:-}"
+    if [ -n "$bedrock_token" ]; then
+        echo "AWS_BEARER_TOKEN_BEDROCK already set"
+    else
+        echo "Enter your AWS Bedrock Bearer Token (or press Enter to skip):"
+        read -r bedrock_token
+        if [ -n "$bedrock_token" ]; then
+            local bedrock_line="export AWS_BEARER_TOKEN_BEDROCK=\"${bedrock_token}\""
+            if ! grep -qF -- "$bedrock_line" "$config_file" 2>/dev/null; then
+                echo "$bedrock_line" >> "$config_file"
+                echo "Added AWS_BEARER_TOKEN_BEDROCK to ${config_file}"
+            fi
+            export AWS_BEARER_TOKEN_BEDROCK="$bedrock_token"
+        fi
+    fi
+
+    # Write bearer token to .env so the binary picks it up regardless of shell state
+    local env_file="${SCRIPT_DIR}/.env"
+    if [ -n "$bedrock_token" ]; then
+        if grep -q "^AWS_BEARER_TOKEN_BEDROCK=" "$env_file" 2>/dev/null; then
+            sed -i '' "s|^AWS_BEARER_TOKEN_BEDROCK=.*|AWS_BEARER_TOKEN_BEDROCK=${bedrock_token}|" "$env_file"
+        else
+            echo "AWS_BEARER_TOKEN_BEDROCK=${bedrock_token}" >> "$env_file"
+        fi
+        echo "Written AWS_BEARER_TOKEN_BEDROCK to ${env_file}"
+    fi
+
+    echo ""
+    echo "Run: source ~/.zshrc"
+}
+
 main() {
     install_bun
     export PATH="${HOME}/.bun/bin:${PATH}"
@@ -91,6 +150,7 @@ main() {
 
     install_binary
     add_to_path
+    add_env_vars
 }
 
 main "$@"

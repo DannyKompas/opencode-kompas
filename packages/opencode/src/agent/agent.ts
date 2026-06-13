@@ -202,7 +202,7 @@ export const layer = Layer.effect(
                 list: "allow",
                 bash: "allow",
                 webfetch: "allow",
-                websearch: "deny",
+                websearch: "allow",
                 read: "allow",
                 external_directory: readonlyExternalDirectory,
               }),

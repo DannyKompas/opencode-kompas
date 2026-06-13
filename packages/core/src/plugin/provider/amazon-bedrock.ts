@@ -92,6 +92,7 @@ export const AmazonBedrockPlugin = PluginV2.define({
 
         options.region = region
         if (typeof options.endpoint === "string") options.baseURL = options.endpoint
+        if (bearerToken) options.bearerToken = bearerToken
         if (!bearerToken && options.credentialProvider === undefined) {
           // Do not gate SDK creation on explicit AWS env vars. The default chain
           // also handles ~/.aws/credentials, SSO, process creds, and instance roles.
