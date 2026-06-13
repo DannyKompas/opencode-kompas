@@ -39,6 +39,8 @@ install_binary() {
     mkdir -p "$INSTALL_DIR"
     cp "$OUTPUT_BINARY" "${INSTALL_DIR}/${BINARY_NAME}"
     chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
+    # Re-sign with ad-hoc signature — cp invalidates the original signature and macOS will SIGKILL unsigned binaries
+    codesign --sign - --force "${INSTALL_DIR}/${BINARY_NAME}" 2>/dev/null || true
     echo "Installed ${BINARY_NAME} to ${INSTALL_DIR}/${BINARY_NAME}"
 }
 
