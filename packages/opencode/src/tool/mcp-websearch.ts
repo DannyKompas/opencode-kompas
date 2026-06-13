@@ -127,7 +127,7 @@ export const callBrave = (
       count: String(count),
     })
 
-    const request = yield* HttpClientRequest.get(`${BRAVE_URL}?${params}`).pipe(
+    const request = HttpClientRequest.get(`${BRAVE_URL}?${params}`).pipe(
       HttpClientRequest.accept("application/json"),
       HttpClientRequest.setHeader("X-Subscription-Token", apiKey),
     )
@@ -142,7 +142,7 @@ export const callBrave = (
       )
 
     const body = yield* response.json
-    const parsed = yield* Schema.decodeUnknown(BraveSearchResult)(body)
+    const parsed = Schema.decodeUnknownSync(BraveSearchResult)(body)
 
     const results = parsed.web?.results ?? []
     if (results.length === 0) {
