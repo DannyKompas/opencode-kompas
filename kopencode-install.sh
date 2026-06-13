@@ -47,34 +47,25 @@ install_binary() {
 add_to_path() {
     local config_file="${HOME}/.zshrc"
     local path_line="export PATH=\"\${HOME}/.local/bin:\${PATH}\""
-    local env_line="export OPENCODE_DISABLE_AUTOUPDATE=1"
     local source_env_line="[ -f \"\${HOME}/.config/kopencode/.env\" ] && { set -a; source \"\${HOME}/.config/kopencode/.env\"; set +a; }"
 
-    if grep -qF -- "$env_line" "$config_file" 2>/dev/null; then
-        if ! grep -qF -- "$source_env_line" "$config_file" 2>/dev/null; then
-            echo "$source_env_line" >> "$config_file"
-            echo "Added env source line to ${config_file}"
-        else
-            echo "Environment already configured in ${config_file}"
-        fi
+    if grep -qF -- "$source_env_line" "$config_file" 2>/dev/null; then
+        echo "Environment already configured in ${config_file}"
         return
     fi
 
     local line_num
     line_num=$(grep -n -- "$path_line" "$config_file" 2>/dev/null | cut -d: -f1 | head -1)
-    
+
     if [ -n "$line_num" ]; then
-        sed -i '' "${line_num}a\\$env_line" "$config_file"
-        line_num=$((line_num + 1))
         sed -i '' "${line_num}a\\$source_env_line" "$config_file"
-        echo "Added OPENCODE_DISABLE_AUTOUPDATE to ${config_file}"
+        echo "Added env source line to ${config_file}"
         echo ""
         echo "Run: source ~/.zshrc"
     else
         echo "" >> "$config_file"
         echo "# kopencode (forked from opencode)" >> "$config_file"
         echo "$path_line" >> "$config_file"
-        echo "$env_line" >> "$config_file"
         echo "$source_env_line" >> "$config_file"
         echo "Added kopencode to PATH in ${config_file}"
         echo ""
@@ -85,8 +76,15 @@ add_to_path() {
 add_env_vars() {
     local config_file="${HOME}/.zshrc"
     local env_file="${HOME}/.config/kopencode/.env"
-    
+
     mkdir -p "${HOME}/.config/kopencode"
+
+    # Always write the source dir so the binary can invoke the update script
+    if grep -q "^KOPENCODE_SOURCE_DIR=" "$env_file" 2>/dev/null; then
+        sed -i '' "s|^KOPENCODE_SOURCE_DIR=.*|KOPENCODE_SOURCE_DIR=${SCRIPT_DIR}|" "$env_file"
+    else
+        echo "KOPENCODE_SOURCE_DIR=${SCRIPT_DIR}" >> "$env_file"
+    fi
     
     # Source existing env vars from config file (only export statements)
     if [ -f "$config_file" ]; then
@@ -167,9 +165,34 @@ apply_patches() {
     done
 }
 
+stash_patches() {
+    if git diff --quiet 2>/dev/null && git diff --cached --quiet 2>/dev/null; then
+        return
+    fi
+    echo ""
+    echo "WARNING: Stashing applied patch changes to keep the working tree clean."
+    echo "         The installed binary already contains all patches — the source"
+    echo "         directory is intentionally left in the upstream state so the"
+    echo "         next --update can merge cleanly without conflicts."
+    echo "         To inspect the applied changes: git stash show -p"
+    echo "         To restore them for debugging: git stash pop"
+    echo ""
+    git stash push -m "kompas-patches: auto-stashed after build"
+}
+
 update_from_upstream() {
     local upstream_url="${1:-https://github.com/sst/opencode.git}"
     local upstream_branch="${2:-dev}"
+
+    cd "${SCRIPT_DIR}"
+
+    if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+        echo ""
+        echo "WARNING: Working tree has uncommitted changes."
+        echo "         If these are leftover applied patches from a previous build,"
+        echo "         run 'git stash' before retrying --update to avoid merge conflicts."
+        echo ""
+    fi
 
     echo "Fetching upstream opencode from ${upstream_url}..."
     if ! git remote get-url upstream >/dev/null 2>&1; then
@@ -183,10 +206,11 @@ update_from_upstream() {
     git merge "upstream/${upstream_branch}" --no-edit
 
     echo "Applying Kompas patches on top of upstream..."
+    echo "(patches will be stashed after the build to keep this directory clean)"
     apply_patches
 
     echo ""
-    echo "Upstream merge complete. Run with --rebuild to build the updated binary."
+    echo "Upstream merge + patches applied. Building..."
 }
 
 main() {
@@ -195,10 +219,12 @@ main() {
 
     force_rebuild=false
     do_update=false
+    silent=false
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --rebuild) force_rebuild=true; shift ;;
             --update)  do_update=true; shift ;;
+            --silent)  silent=true; shift ;;
             *) shift ;;
         esac
     done
@@ -214,9 +240,25 @@ main() {
         echo "Binary already exists at $OUTPUT_BINARY. Use --rebuild to force rebuild."
     fi
 
+    if [ "$do_update" = true ]; then
+        stash_patches
+    fi
+
     install_binary
-    add_to_path
-    add_env_vars
+    if [ "$silent" = false ]; then
+        add_to_path
+        add_env_vars
+    else
+        # In silent mode (called by auto-update), still write KOPENCODE_SOURCE_DIR
+        # in case the env file was wiped, but skip interactive prompts.
+        local env_file="${HOME}/.config/kopencode/.env"
+        mkdir -p "${HOME}/.config/kopencode"
+        if grep -q "^KOPENCODE_SOURCE_DIR=" "$env_file" 2>/dev/null; then
+            sed -i '' "s|^KOPENCODE_SOURCE_DIR=.*|KOPENCODE_SOURCE_DIR=${SCRIPT_DIR}|" "$env_file"
+        else
+            echo "KOPENCODE_SOURCE_DIR=${SCRIPT_DIR}" >> "$env_file"
+        fi
+    fi
 }
 
 main "$@"
