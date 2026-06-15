@@ -7,7 +7,7 @@ BINARY_NAME="kopencode"
 BUILT_BINARY="${SCRIPT_DIR}/packages/opencode/dist/opencode-darwin-arm64/bin/opencode"
 OUTPUT_BINARY="${SCRIPT_DIR}/packages/opencode/dist/opencode-darwin-arm64/bin/kopencode"
 
-VERBOSE=false
+VERBOSE=true
 
 log()  { [ "$VERBOSE" = true ] && echo "$@" || true; }
 warn() { echo "$@"; }
@@ -232,7 +232,7 @@ main() {
             --rebuild) force_rebuild=true; shift ;;
             --update)  do_update=true; shift ;;
             --silent)  silent=true; shift ;;
-            -v)        VERBOSE=true; shift ;;
+            -q)        VERBOSE=false; shift ;;
             *) shift ;;
         esac
     done
