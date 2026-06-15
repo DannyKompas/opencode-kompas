@@ -112,13 +112,15 @@ add_env_vars() {
         done < <(grep -E "^export " "$config_file" 2>/dev/null || true)
     fi
 
+    local force="${1:-false}"
+
     local brave_key="${BRAVE_SEARCH_API_KEY:-}"
-    if [ -z "$brave_key" ]; then
-        echo "Enter your Brave Search API key (or press Enter to skip):"
-        read -r brave_key
-        if [ -n "$brave_key" ]; then
-            export BRAVE_SEARCH_API_KEY="$brave_key"
-        fi
+    if [ -z "$brave_key" ] || [ "$force" = true ]; then
+        [ -n "$brave_key" ] && echo "Brave Search API key is set (press Enter to keep, or enter a new value):"
+        [ -z "$brave_key" ] && echo "Enter your Brave Search API key (or press Enter to skip):"
+        read -r input
+        [ -n "$input" ] && brave_key="$input"
+        export BRAVE_SEARCH_API_KEY="$brave_key"
     fi
 
     if [ -n "$brave_key" ]; then
@@ -131,12 +133,12 @@ add_env_vars() {
     fi
 
     local bedrock_token="${AWS_BEARER_TOKEN_BEDROCK:-}"
-    if [ -z "$bedrock_token" ]; then
-        echo "Enter your AWS Bedrock Bearer Token (or press Enter to skip):"
-        read -r bedrock_token
-        if [ -n "$bedrock_token" ]; then
-            export AWS_BEARER_TOKEN_BEDROCK="$bedrock_token"
-        fi
+    if [ -z "$bedrock_token" ] || [ "$force" = true ]; then
+        [ -n "$bedrock_token" ] && echo "AWS Bedrock Bearer Token is set (press Enter to keep, or enter a new value):"
+        [ -z "$bedrock_token" ] && echo "Enter your AWS Bedrock Bearer Token (or press Enter to skip):"
+        read -r input
+        [ -n "$input" ] && bedrock_token="$input"
+        export AWS_BEARER_TOKEN_BEDROCK="$bedrock_token"
     fi
 
     if [ -n "$bedrock_token" ]; then
@@ -255,7 +257,7 @@ main() {
     install_binary
     if [ "$silent" = false ]; then
         add_to_path
-        add_env_vars
+        add_env_vars "$force_rebuild"
     else
         # In silent mode (called by auto-update), still write KOPENCODE_SOURCE_DIR
         # in case the env file was wiped, but skip interactive prompts.
