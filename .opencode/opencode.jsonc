@@ -6,6 +6,7 @@
   "permission": {
     "websearch": "ask",
     "edit": "ask",
+    "bash": "ask",
   },
   "references": {
     "effect": {
