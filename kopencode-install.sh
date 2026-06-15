@@ -76,7 +76,7 @@ add_to_path() {
     fi
 
     local line_num
-    line_num=$(grep -n -- "$path_line" "$config_file" 2>/dev/null | cut -d: -f1 | head -1)
+    line_num=$(grep -n -- "$path_line" "$config_file" 2>/dev/null | cut -d: -f1 | head -1 || true)
 
     if [ -n "$line_num" ]; then
         sed -i '' "${line_num}a\\$source_env_line" "$config_file"
