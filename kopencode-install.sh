@@ -18,6 +18,17 @@ install_opencode() {
     fi
 }
 
+create_shim() {
+    local shim="${HOME}/.local/bin/kopencode"
+    mkdir -p "${HOME}/.local/bin"
+    cat > "$shim" << 'EOF'
+#!/usr/bin/env bash
+exec opencode "$@"
+EOF
+    chmod +x "$shim"
+    log "Created kopencode shim at ${shim}"
+}
+
 write_hardening_config() {
     mkdir -p "$(dirname "$OPENCODE_GLOBAL_CONFIG")"
     cat > "$OPENCODE_GLOBAL_CONFIG" << 'EOF'
@@ -131,6 +142,7 @@ main() {
     done
 
     install_opencode
+    create_shim
     write_hardening_config
     setup_env "$force_keys"
     setup_shell
