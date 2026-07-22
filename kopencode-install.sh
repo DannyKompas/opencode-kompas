@@ -5,6 +5,51 @@ OPENCODE_GLOBAL_CONFIG="${HOME}/.config/opencode/opencode.jsonc"
 KOPENCODE_ENV_FILE="${HOME}/.config/kopencode/.env"
 VERBOSE=true
 
+# Models to keep visible. All other known Bedrock models are disabled.
+ALLOWED_BEDROCK_MODELS=(
+    "minimax.minimax-m2"
+    "moonshot.kimi-k2-thinking"
+    "moonshotai.kimi-k2.5"
+    "zai.glm-5"
+)
+
+# Full Bedrock model list from models.dev (as of this script version).
+# Any model NOT in ALLOWED_BEDROCK_MODELS will be disabled in the config.
+ALL_BEDROCK_MODELS=(
+    "amazon.nova-2-lite-v1:0" "amazon.nova-lite-v1:0" "amazon.nova-micro-v1:0" "amazon.nova-pro-v1:0"
+    "anthropic.claude-haiku-4-5-20251001-v1:0" "anthropic.claude-opus-4-1-20250805-v1:0"
+    "anthropic.claude-opus-4-5-20251101-v1:0" "anthropic.claude-opus-4-6-v1" "anthropic.claude-opus-4-7"
+    "anthropic.claude-sonnet-4-5-20250929-v1:0" "anthropic.claude-sonnet-4-6"
+    "au.anthropic.claude-haiku-4-5-20251001-v1:0" "au.anthropic.claude-opus-4-6-v1"
+    "au.anthropic.claude-sonnet-4-5-20250929-v1:0" "au.anthropic.claude-sonnet-4-6"
+    "deepseek.r1-v1:0" "deepseek.v3-v1:0" "deepseek.v3.2"
+    "eu.anthropic.claude-haiku-4-5-20251001-v1:0" "eu.anthropic.claude-opus-4-5-20251101-v1:0"
+    "eu.anthropic.claude-opus-4-6-v1" "eu.anthropic.claude-opus-4-7"
+    "eu.anthropic.claude-sonnet-4-5-20250929-v1:0" "eu.anthropic.claude-sonnet-4-6"
+    "global.anthropic.claude-haiku-4-5-20251001-v1:0" "global.anthropic.claude-opus-4-5-20251101-v1:0"
+    "global.anthropic.claude-opus-4-6-v1" "global.anthropic.claude-opus-4-7"
+    "global.anthropic.claude-sonnet-4-5-20250929-v1:0" "global.anthropic.claude-sonnet-4-6"
+    "google.gemma-3-12b-it" "google.gemma-3-27b-it" "google.gemma-3-4b-it"
+    "jp.anthropic.claude-opus-4-7" "jp.anthropic.claude-sonnet-4-5-20250929-v1:0" "jp.anthropic.claude-sonnet-4-6"
+    "meta.llama3-1-70b-instruct-v1:0" "meta.llama3-1-8b-instruct-v1:0" "meta.llama3-3-70b-instruct-v1:0"
+    "meta.llama4-maverick-17b-instruct-v1:0" "meta.llama4-scout-17b-instruct-v1:0"
+    "minimax.minimax-m2.1" "minimax.minimax-m2.5"
+    "mistral.devstral-2-123b" "mistral.magistral-small-2509" "mistral.ministral-3-14b-instruct"
+    "mistral.ministral-3-3b-instruct" "mistral.ministral-3-8b-instruct"
+    "mistral.mistral-large-3-675b-instruct" "mistral.pixtral-large-2502-v1:0"
+    "mistral.voxtral-mini-3b-2507" "mistral.voxtral-small-24b-2507"
+    "nvidia.nemotron-nano-12b-v2" "nvidia.nemotron-nano-3-30b" "nvidia.nemotron-nano-9b-v2" "nvidia.nemotron-super-3-120b"
+    "openai.gpt-oss-120b-1:0" "openai.gpt-oss-20b-1:0" "openai.gpt-oss-safeguard-120b" "openai.gpt-oss-safeguard-20b"
+    "qwen.qwen3-235b-a22b-2507-v1:0" "qwen.qwen3-32b-v1:0" "qwen.qwen3-coder-30b-a3b-v1:0"
+    "qwen.qwen3-coder-480b-a35b-v1:0" "qwen.qwen3-coder-next" "qwen.qwen3-next-80b-a3b" "qwen.qwen3-vl-235b-a22b"
+    "us.anthropic.claude-haiku-4-5-20251001-v1:0" "us.anthropic.claude-opus-4-1-20250805-v1:0"
+    "us.anthropic.claude-opus-4-5-20251101-v1:0" "us.anthropic.claude-opus-4-6-v1" "us.anthropic.claude-opus-4-7"
+    "us.anthropic.claude-sonnet-4-5-20250929-v1:0" "us.anthropic.claude-sonnet-4-6"
+    "us.deepseek.r1-v1:0" "us.meta.llama4-maverick-17b-instruct-v1:0" "us.meta.llama4-scout-17b-instruct-v1:0"
+    "writer.palmyra-x4-v1:0" "writer.palmyra-x5-v1:0"
+    "zai.glm-4.7" "zai.glm-4.7-flash"
+)
+
 log()  { [ "$VERBOSE" = true ] && echo "$@" || true; }
 warn() { echo "$@"; }
 
@@ -31,9 +76,23 @@ EOF
 
 write_hardening_config() {
     mkdir -p "$(dirname "$OPENCODE_GLOBAL_CONFIG")"
-    cat > "$OPENCODE_GLOBAL_CONFIG" << 'EOF'
+
+    # Build disabled-models JSON: every model NOT in ALLOWED_BEDROCK_MODELS gets disabled: true
+    local disabled_models=""
+    for model in "${ALL_BEDROCK_MODELS[@]}"; do
+        local allowed=false
+        for a in "${ALLOWED_BEDROCK_MODELS[@]}"; do
+            [ "$model" = "$a" ] && allowed=true && break
+        done
+        if [ "$allowed" = false ]; then
+            disabled_models+="        \"${model}\": { \"disabled\": true },"$'\n'
+        fi
+    done
+    disabled_models="${disabled_models%,$'\n'}"  # strip trailing comma
+
+    cat > "$OPENCODE_GLOBAL_CONFIG" << EOF
 {
-  "$schema": "https://opencode.ai/config.json",
+  "\$schema": "https://opencode.ai/config.json",
   "enabled_providers": ["amazon-bedrock"],
   "share": "disabled",
   "permission": {
@@ -50,6 +109,13 @@ write_hardening_config() {
     "brave-search": {
       "type": "local",
       "command": ["npx", "-y", "@modelcontextprotocol/server-brave-search"]
+    }
+  },
+  "provider": {
+    "amazon-bedrock": {
+      "models": {
+${disabled_models}
+      }
     }
   }
 }
