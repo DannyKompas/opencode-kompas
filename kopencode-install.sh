@@ -170,6 +170,17 @@ setup_env() {
             echo "AWS_BEARER_TOKEN_BEDROCK=${bedrock_token}" >> "$KOPENCODE_ENV_FILE"
         fi
         log "Written AWS_BEARER_TOKEN_BEDROCK to ${KOPENCODE_ENV_FILE}"
+
+        # OPENCODE_AUTH_CONTENT: feeds the token directly into opencode's auth system,
+        # bypassing the env-var path. This is what prevents the TUI from showing the
+        # "connect provider" dialog even when AWS_BEARER_TOKEN_BEDROCK is set by the shim.
+        local auth_json="{\"amazon-bedrock\":{\"type\":\"api\",\"key\":\"${bedrock_token}\"}}"
+        if grep -q "^OPENCODE_AUTH_CONTENT=" "$KOPENCODE_ENV_FILE" 2>/dev/null; then
+            sed -i '' "s|^OPENCODE_AUTH_CONTENT=.*|OPENCODE_AUTH_CONTENT='${auth_json}'|" "$KOPENCODE_ENV_FILE"
+        else
+            echo "OPENCODE_AUTH_CONTENT='${auth_json}'" >> "$KOPENCODE_ENV_FILE"
+        fi
+        log "Written OPENCODE_AUTH_CONTENT to ${KOPENCODE_ENV_FILE}"
     fi
 }
 
