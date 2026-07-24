@@ -66,9 +66,10 @@ install_opencode() {
 create_shim() {
     local shim="${HOME}/.local/bin/kopencode"
     mkdir -p "${HOME}/.local/bin"
-    cat > "$shim" << 'EOF'
+    cat > "$shim" << EOF
 #!/usr/bin/env bash
-exec opencode "$@"
+[ -f "${KOPENCODE_ENV_FILE}" ] && set -a && source "${KOPENCODE_ENV_FILE}" && set +a
+exec opencode "\$@"
 EOF
     chmod +x "$shim"
     log "Created kopencode shim at ${shim}"
