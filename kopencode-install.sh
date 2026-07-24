@@ -214,6 +214,10 @@ main() {
     setup_env "$force_keys"
     setup_shell
 
+    # Activate env in the current shell (works when script is sourced; no-op in subshell)
+    # shellcheck disable=SC1090
+    [ -f "$KOPENCODE_ENV_FILE" ] && set -a && source "$KOPENCODE_ENV_FILE" && set +a
+
     echo ""
     echo "*****  source ~/.zshrc  OR  open a new terminal  *****"
     echo ""
