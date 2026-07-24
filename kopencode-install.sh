@@ -85,7 +85,7 @@ write_hardening_config() {
             [ "$model" = "$a" ] && allowed=true && break
         done
         if [ "$allowed" = false ]; then
-            disabled_models+="        \"${model}\": { \"disabled\": true },"$'\n'
+            disabled_models+="        \"${model}\": { \"status\": \"deprecated\" },"$'\n'
         fi
     done
     disabled_models="${disabled_models%,$'\n'}"  # strip trailing comma
