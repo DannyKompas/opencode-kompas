@@ -114,6 +114,10 @@ write_hardening_config() {
   },
   "provider": {
     "amazon-bedrock": {
+      "options": {
+        "apiKey": "${AWS_BEARER_TOKEN_BEDROCK:-}",
+        "bearerToken": "${AWS_BEARER_TOKEN_BEDROCK:-}"
+      },
       "models": {
 ${disabled_models}
       }
@@ -210,8 +214,8 @@ main() {
 
     install_opencode
     create_shim
-    write_hardening_config
     setup_env "$force_keys"
+    write_hardening_config
     setup_shell
 
     # Activate env in the current shell (works when script is sourced; no-op in subshell)
