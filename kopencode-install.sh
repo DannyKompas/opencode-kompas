@@ -2,8 +2,12 @@
 set -euo pipefail
 
 OPENCODE_GLOBAL_CONFIG="${HOME}/.config/opencode/opencode.jsonc"
+OPENCODE_AUTH_FILE="${HOME}/.local/share/opencode/auth.json"
 KOPENCODE_ENV_FILE="${HOME}/.config/kopencode/.env"
 VERBOSE=true
+
+# Default model shown at startup (avoids the model picker dialog)
+DEFAULT_BEDROCK_MODEL="amazon-bedrock/zai.glm-5"
 
 # Models to keep visible. All other known Bedrock models are disabled.
 ALLOWED_BEDROCK_MODELS=(
@@ -63,6 +67,17 @@ install_opencode() {
     fi
 }
 
+write_auth() {
+    local token="${1:-}"
+    [ -z "$token" ] && return
+    mkdir -p "$(dirname "$OPENCODE_AUTH_FILE")"
+    # Write opencode's auth.json directly — same format as `opencode auth login`.
+    # This is the most reliable way to pre-authenticate; no env vars or TUI interaction needed.
+    printf '{\n  "amazon-bedrock": {\n    "type": "api",\n    "key": "%s"\n  }\n}\n' "$token" > "$OPENCODE_AUTH_FILE"
+    chmod 600 "$OPENCODE_AUTH_FILE"
+    log "Written opencode auth credentials to ${OPENCODE_AUTH_FILE}"
+}
+
 create_shim() {
     local shim="${HOME}/.local/bin/kopencode"
     mkdir -p "${HOME}/.local/bin"
@@ -95,6 +110,7 @@ write_hardening_config() {
 {
   "\$schema": "https://opencode.ai/config.json",
   "enabled_providers": ["amazon-bedrock"],
+  "model": "${DEFAULT_BEDROCK_MODEL}",
   "share": "disabled",
   "permission": {
     "websearch": "ask",
@@ -227,6 +243,7 @@ main() {
     create_shim
     setup_env "$force_keys"
     write_hardening_config
+    write_auth "${AWS_BEARER_TOKEN_BEDROCK:-}"
     setup_shell
 
     # Activate env in the current shell (works when script is sourced; no-op in subshell)
