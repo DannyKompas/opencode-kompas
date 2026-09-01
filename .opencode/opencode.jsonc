@@ -1,8 +1,16 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "enabled_providers": ["amazon-bedrock"],
+  "enabled_providers": ["amazon-bedrock", "azure"],
   "share": "disabled",
-  "provider": {},
+  "provider": {
+    "amazon-bedrock": {
+      "whitelist": ["minimax.minimax-m2.5"],
+    },
+    "azure": {
+      "whitelist": ["deepseek-v4-flash"],
+      "options": { "useCompletionUrls": true, "apiKey": "{env:AZURE_API_KEY}" },
+    },
+  },
   "permission": {
     "websearch": "ask",
     "edit": "ask",

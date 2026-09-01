@@ -149,6 +149,42 @@ add_env_vars() {
         fi
         log "Written AWS_BEARER_TOKEN_BEDROCK to ${env_file}"
     fi
+
+    local azure_resource_name="${AZURE_RESOURCE_NAME:-}"
+    if [ -z "$azure_resource_name" ] || [ "$force" = true ]; then
+        [ -n "$azure_resource_name" ] && echo "Azure resource name is set (press Enter to keep, or enter a new value):"
+        [ -z "$azure_resource_name" ] && echo "Enter your Azure / Microsoft Foundry resource name (or press Enter to skip):"
+        read -r input
+        [ -n "$input" ] && azure_resource_name="$input"
+        export AZURE_RESOURCE_NAME="$azure_resource_name"
+    fi
+
+    if [ -n "$azure_resource_name" ]; then
+        if grep -q "^AZURE_RESOURCE_NAME=" "$env_file" 2>/dev/null; then
+            sed -i '' "s|^AZURE_RESOURCE_NAME=.*|AZURE_RESOURCE_NAME=${azure_resource_name}|" "$env_file"
+        else
+            echo "AZURE_RESOURCE_NAME=${azure_resource_name}" >> "$env_file"
+        fi
+        log "Written AZURE_RESOURCE_NAME to ${env_file}"
+    fi
+
+    local azure_api_key="${AZURE_API_KEY:-}"
+    if [ -z "$azure_api_key" ] || [ "$force" = true ]; then
+        [ -n "$azure_api_key" ] && echo "Azure API key is set (press Enter to keep, or enter a new value):"
+        [ -z "$azure_api_key" ] && echo "Enter your Azure / Microsoft Foundry API key (or press Enter to skip):"
+        read -r input
+        [ -n "$input" ] && azure_api_key="$input"
+        export AZURE_API_KEY="$azure_api_key"
+    fi
+
+    if [ -n "$azure_api_key" ]; then
+        if grep -q "^AZURE_API_KEY=" "$env_file" 2>/dev/null; then
+            sed -i '' "s|^AZURE_API_KEY=.*|AZURE_API_KEY=${azure_api_key}|" "$env_file"
+        else
+            echo "AZURE_API_KEY=${azure_api_key}" >> "$env_file"
+        fi
+        log "Written AZURE_API_KEY to ${env_file}"
+    fi
 }
 
 apply_patches() {

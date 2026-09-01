@@ -10,7 +10,7 @@
 <p align="center">The open source AI coding agent.</p>
 
 > [!NOTE]
-> This is the **Kompas fork** of OpenCode, hardened for enterprise use with Bedrock-only enforcement, Brave Search, and additional security controls.
+> This is the **Kompas fork** of OpenCode, hardened for enterprise use with a Bedrock/Azure-only provider allowlist, Brave Search, and additional security controls.
   <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
   <a href="https://www.npmjs.com/package/opencode-ai"><img alt="npm" src="https://img.shields.io/npm/v/opencode-ai?style=flat-square" /></a>
   <a href="https://github.com/anomalyco/opencode/actions/workflows/publish.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/publish.yml?style=flat-square&branch=dev" /></a>
@@ -74,13 +74,17 @@ This fork includes security hardening for enterprise deployment. Create a `.env`
 # Required: AWS Bedrock credentials
 AWS_BEARER_TOKEN_BEDROCK=your_bedrock_token_here
 
+# Required for Azure / Microsoft Foundry: resource name + API key
+AZURE_RESOURCE_NAME=your_azure_resource_name
+AZURE_API_KEY=your_azure_api_key
+
 # Optional: Brave Search API (required for web search)
 BRAVE_SEARCH_API_KEY=your_brave_api_key
 ```
 
 **Security Features:**
 
-- **Bedrock-only models** - Only Amazon Bedrock models are available via `enabled_providers` config
+- **Restricted provider allowlist** - Only Amazon Bedrock and Azure (including Microsoft Foundry deployments) are available via `enabled_providers` config
 - **Code-level enforcement** - Provider whitelist is hard-coded in the binary for defense-in-depth
 - **Web search denied by default** - Requires explicit permission each time
 - **Session sharing disabled** - All session sharing is blocked via config
@@ -90,7 +94,7 @@ The default `.opencode/opencode.jsonc` configuration enforces these restrictions
 
 ```json
 {
-  "enabled_providers": ["amazon-bedrock"],
+  "enabled_providers": ["amazon-bedrock", "azure"],
   "share": "disabled",
   "permission": {
     "websearch": "deny"
