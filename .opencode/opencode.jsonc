@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "enabled_providers": ["amazon-bedrock", "azure"],
+  "enabled_providers": ["amazon-bedrock", "azure", "litellm"],
   "share": "disabled",
   "provider": {
     "amazon-bedrock": {
@@ -9,6 +9,22 @@
     "azure": {
       "whitelist": ["deepseek-v4-flash"],
       "options": { "useCompletionUrls": true, "apiKey": "{env:AZURE_API_KEY}" },
+    },
+    "litellm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LiteLLM",
+      "options": { "baseURL": "{env:LITELLM_BASE_URL}", "apiKey": "{env:LITELLM_API_KEY}" },
+      "models": {
+        "deepseek-v4-flash": {
+          "name": "DeepSeek V4 Flash",
+          "variants": {
+            "low": { "allowed_openai_params": ["reasoning_effort"] },
+            "medium": { "allowed_openai_params": ["reasoning_effort"] },
+            "high": { "allowed_openai_params": ["reasoning_effort"] },
+            "max": { "allowed_openai_params": ["reasoning_effort"] },
+          },
+        },
+      },
     },
   },
   "permission": {

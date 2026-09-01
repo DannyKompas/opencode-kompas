@@ -6,12 +6,30 @@
 import fs from "fs"
 
 const DEFAULTS = {
-  enabled_providers: ["amazon-bedrock", "azure"],
+  enabled_providers: ["amazon-bedrock", "azure", "litellm"],
   provider: {
     "amazon-bedrock": { whitelist: ["minimax.minimax-m2.5"] },
     azure: {
       whitelist: ["deepseek-v4-flash"],
       options: { useCompletionUrls: true, apiKey: "{env:AZURE_API_KEY}" },
+    },
+    litellm: {
+      npm: "@ai-sdk/openai-compatible",
+      name: "LiteLLM",
+      options: { baseURL: "{env:LITELLM_BASE_URL}", apiKey: "{env:LITELLM_API_KEY}" },
+      models: {
+        "deepseek-v4-flash": {
+          name: "DeepSeek V4 Flash",
+          // LiteLLM's azure_ai provider doesn't allow-list reasoning_effort by default;
+          // this tells it to forward the param anyway, per litellm's own error message.
+          variants: {
+            low: { allowed_openai_params: ["reasoning_effort"] },
+            medium: { allowed_openai_params: ["reasoning_effort"] },
+            high: { allowed_openai_params: ["reasoning_effort"] },
+            max: { allowed_openai_params: ["reasoning_effort"] },
+          },
+        },
+      },
     },
   },
 }
@@ -31,7 +49,14 @@ try {
   process.exit(1)
 }
 
-if (cfg.enabled_providers === undefined) cfg.enabled_providers = DEFAULTS.enabled_providers
+if (cfg.enabled_providers === undefined) {
+  cfg.enabled_providers = DEFAULTS.enabled_providers
+} else if (Array.isArray(cfg.enabled_providers)) {
+  // Union in any newly-approved providers without disturbing removals someone made deliberately.
+  for (const id of DEFAULTS.enabled_providers) {
+    if (!cfg.enabled_providers.includes(id)) cfg.enabled_providers.push(id)
+  }
+}
 
 cfg.provider = cfg.provider ?? {}
 for (const [id, defaults] of Object.entries(DEFAULTS.provider)) {

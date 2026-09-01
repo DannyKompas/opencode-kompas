@@ -185,6 +185,43 @@ add_env_vars() {
         fi
         log "Written AZURE_API_KEY to ${env_file}"
     fi
+
+    local litellm_base_url="${LITELLM_BASE_URL:-}"
+    if [ -z "$litellm_base_url" ] || [ "$force" = true ]; then
+        [ -n "$litellm_base_url" ] && echo "LiteLLM base URL is set (press Enter to keep, or enter a new value):"
+        [ -z "$litellm_base_url" ] && echo "Enter your LiteLLM proxy base URL (or press Enter to use http://localhost:4000):"
+        read -r input
+        [ -n "$input" ] && litellm_base_url="$input"
+        [ -z "$litellm_base_url" ] && litellm_base_url="http://localhost:4000"
+        export LITELLM_BASE_URL="$litellm_base_url"
+    fi
+
+    if [ -n "$litellm_base_url" ]; then
+        if grep -q "^LITELLM_BASE_URL=" "$env_file" 2>/dev/null; then
+            sed -i '' "s|^LITELLM_BASE_URL=.*|LITELLM_BASE_URL=${litellm_base_url}|" "$env_file"
+        else
+            echo "LITELLM_BASE_URL=${litellm_base_url}" >> "$env_file"
+        fi
+        log "Written LITELLM_BASE_URL to ${env_file}"
+    fi
+
+    local litellm_api_key="${LITELLM_API_KEY:-}"
+    if [ -z "$litellm_api_key" ] || [ "$force" = true ]; then
+        [ -n "$litellm_api_key" ] && echo "LiteLLM API key is set (press Enter to keep, or enter a new value):"
+        [ -z "$litellm_api_key" ] && echo "Enter your LiteLLM API key (or press Enter to skip):"
+        read -r input
+        [ -n "$input" ] && litellm_api_key="$input"
+        export LITELLM_API_KEY="$litellm_api_key"
+    fi
+
+    if [ -n "$litellm_api_key" ]; then
+        if grep -q "^LITELLM_API_KEY=" "$env_file" 2>/dev/null; then
+            sed -i '' "s|^LITELLM_API_KEY=.*|LITELLM_API_KEY=${litellm_api_key}|" "$env_file"
+        else
+            echo "LITELLM_API_KEY=${litellm_api_key}" >> "$env_file"
+        fi
+        log "Written LITELLM_API_KEY to ${env_file}"
+    fi
 }
 
 configure_global_provider_defaults() {
