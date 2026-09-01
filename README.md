@@ -84,13 +84,13 @@ BRAVE_SEARCH_API_KEY=your_brave_api_key
 
 **Security Features:**
 
-- **Restricted provider allowlist** - Only Amazon Bedrock and Azure (including Microsoft Foundry deployments) are available via `enabled_providers` config
-- **Code-level enforcement** - Provider whitelist is hard-coded in the binary for defense-in-depth
+- **Restricted provider allowlist** - Only Amazon Bedrock and Azure (including Microsoft Foundry deployments) are available via `enabled_providers` config, each further restricted to a single approved model via `provider.<id>.whitelist`
+- **Installed by default, everywhere** - `kopencode-install.sh` seeds these restrictions into the global opencode config (`~/.config/opencode/opencode.jsonc`) on every install, so they apply regardless of which directory `kopencode` is run from - not just inside this repo. The installer only fills in keys that aren't already set, so a deliberate override in your own global/project config is left alone.
 - **Web search denied by default** - Requires explicit permission each time
 - **Session sharing disabled** - All session sharing is blocked via config
 - **External service warnings** - Permission prompts show the external service hostname with data disclosure warnings
 
-The default `.opencode/opencode.jsonc` configuration enforces these restrictions:
+This repo's own `.opencode/opencode.jsonc` configuration mirrors the same restrictions for local development:
 
 ```json
 {

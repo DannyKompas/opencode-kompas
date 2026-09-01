@@ -187,6 +187,18 @@ add_env_vars() {
     fi
 }
 
+configure_global_provider_defaults() {
+    local config_dir="${XDG_CONFIG_HOME:-${HOME}/.config}/opencode"
+    local config_file="${config_dir}/opencode.jsonc"
+
+    mkdir -p "$config_dir"
+    [ -f "$config_file" ] || echo '{"$schema": "https://opencode.ai/config.json"}' > "$config_file"
+
+    bun run "${SCRIPT_DIR}/script/kompas-provider-defaults.mjs" "$config_file" \
+        && log "Ensured provider allowlist defaults in ${config_file}" \
+        || warn "WARNING: could not apply default provider allowlist to ${config_file} (leaving it untouched)"
+}
+
 apply_patches() {
     local patches_dir="${SCRIPT_DIR}/patches/kompas"
     if [ ! -d "$patches_dir" ]; then
@@ -291,6 +303,7 @@ main() {
     fi
 
     install_binary
+    configure_global_provider_defaults
     if [ "$silent" = false ]; then
         add_to_path
         add_env_vars "$force_rebuild"
