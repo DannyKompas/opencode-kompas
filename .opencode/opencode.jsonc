@@ -7,8 +7,18 @@
       "whitelist": ["minimax.minimax-m2.5"],
     },
     "azure": {
-      "whitelist": ["deepseek-v4-flash"],
+      "whitelist": ["deepseek-v4-flash", "deepseek-v4-flash-0731"],
       "options": { "useCompletionUrls": true, "apiKey": "{env:AZURE_API_KEY}" },
+      "models": {
+        "deepseek-v4-flash-0731": {
+          "name": "DeepSeek V4 Flash (0731)",
+          "reasoning": true,
+          "provider": {
+            "npm": "@ai-sdk/openai-compatible",
+            "api": "https://${AZURE_RESOURCE_NAME}.services.ai.azure.com/models",
+          },
+        },
+      },
     },
     "litellm": {
       "npm": "@ai-sdk/openai-compatible",
@@ -17,6 +27,17 @@
       "models": {
         "deepseek-v4-flash": {
           "name": "DeepSeek V4 Flash",
+          "reasoning": true,
+          "variants": {
+            "low": { "allowed_openai_params": ["reasoning_effort"] },
+            "medium": { "allowed_openai_params": ["reasoning_effort"] },
+            "high": { "allowed_openai_params": ["reasoning_effort"] },
+            "max": { "allowed_openai_params": ["reasoning_effort"] },
+          },
+        },
+        "deepseek-v4-flash-0731": {
+          "name": "DeepSeek V4 Flash (0731)",
+          "reasoning": true,
           "variants": {
             "low": { "allowed_openai_params": ["reasoning_effort"] },
             "medium": { "allowed_openai_params": ["reasoning_effort"] },
