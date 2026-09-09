@@ -73,6 +73,37 @@ export const Model = Schema.Struct({
   ),
 })
 
+// Providers with tight per-deployment quotas (Azure deployments in particular)
+// answer bursts with 429s. Two knobs matter: how long everyone waits after a
+// 429 (`cooldown`/`minDelay`/`maxCooldown`, enforced across concurrent requests
+// so parallel subagents back off together) and how long a session keeps
+// retrying before the error surfaces (`maxElapsed`).
+export const RateLimit = Schema.Struct({
+  disabled: Schema.optional(Schema.Boolean).annotate({
+    description: "Disable the shared cooldown for this provider. Retries still apply.",
+  }),
+  minDelay: Schema.optional(PositiveInt).annotate({
+    description:
+      "Minimum wait in milliseconds before retrying a rate-limited request, even when the provider asks for less. Defaults to 1000.",
+  }),
+  cooldown: Schema.optional(PositiveInt).annotate({
+    description:
+      "How long in milliseconds to hold back new requests after a 429 that carries no retry hint. Defaults to 2000.",
+  }),
+  maxCooldown: Schema.optional(PositiveInt).annotate({
+    description: "Upper bound in milliseconds on the shared cooldown after a 429. Defaults to 60000.",
+  }),
+  maxConcurrent: Schema.optional(PositiveInt).annotate({
+    description:
+      "Maximum number of in-flight requests to this provider. Unset means unlimited. Set to 1 to serialize requests to a low-quota deployment.",
+  }),
+  maxElapsed: Schema.optional(PositiveInt).annotate({
+    description:
+      "Give up retrying a rate-limited or transient failure after this many milliseconds of wall clock. Defaults to 600000 (10 minutes).",
+  }),
+}).annotate({ identifier: "ProviderRateLimitConfig" })
+export type RateLimit = Schema.Schema.Type<typeof RateLimit>
+
 export const Info = Schema.Struct({
   api: Schema.optional(Schema.String),
   name: Schema.optional(Schema.String),
@@ -111,6 +142,10 @@ export const Info = Schema.Struct({
         chunkTimeout: Schema.optional(PositiveInt).annotate({
           description:
             "Timeout in milliseconds between streamed SSE chunks for this provider. If no chunk arrives within this window, the request is aborted.",
+        }),
+        rateLimit: Schema.optional(RateLimit).annotate({
+          description:
+            "How this provider's rate limits are handled: shared cooldown after a 429, in-flight request cap, and retry bounds.",
         }),
       }),
       [Schema.Record(Schema.String, Schema.Any)],

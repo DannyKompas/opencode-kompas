@@ -389,6 +389,36 @@ Provider options can include `timeout`, `chunkTimeout`, and `setCacheKey`:
 - `chunkTimeout` - Timeout in milliseconds between streamed response chunks. If no chunk arrives in time, the request is aborted.
 - `setCacheKey` - Ensure a cache key is always set for designated provider.
 
+#### Rate limits
+
+Providers with tight per-deployment quotas answer bursts with `429`s. The `rateLimit` options control how OpenCode responds.
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "azure": {
+      "options": {
+        "rateLimit": {
+          "minDelay": 2000,
+          "cooldown": 5000,
+          "maxConcurrent": 1
+        }
+      }
+    }
+  }
+}
+```
+
+- `minDelay` - Minimum wait in milliseconds before retrying a rate-limited request, even when the provider asks for less (default: 1000). Some deployments answer a `429` with `retry-after: 0`; taken literally that turns retries into a hot loop that keeps the limit tripped.
+- `cooldown` - How long in milliseconds to hold back requests after a `429` that carries no retry hint (default: 2000).
+- `maxCooldown` - Upper bound in milliseconds on that cooldown (default: 60000).
+- `maxConcurrent` - Maximum in-flight requests to the provider (default: unlimited). Set to `1` to serialize requests to a low-quota deployment.
+- `maxElapsed` - Give up retrying after this many milliseconds of wall clock (default: 600000). Without a bound, a saturated deployment can keep a session retrying indefinitely.
+- `disabled` - Turn off the shared cooldown. Retries still apply.
+
+The cooldown is shared across every concurrent request to the provider, so a `429` seen by one subagent backs off the others too instead of each rediscovering it. It is an absolute deadline rather than an added sleep, so it overlaps with retry backoff rather than stacking on top of it.
+
 You can also configure [local models](/docs/models#local). [Learn more](/docs/models).
 
 ---

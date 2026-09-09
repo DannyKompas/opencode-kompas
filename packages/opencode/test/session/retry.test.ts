@@ -85,6 +85,42 @@ describe("session.retry.delay", () => {
     expect(SessionRetry.delay(1, error)).toBe(SessionRetry.RETRY_MAX_DELAY)
   })
 
+  // Azure deployments answer some 429s with a zero retry hint. Taken literally
+  // that produced a hot retry loop that kept the rate limit tripped.
+  test("floors a zero retry-after-ms hint", () => {
+    const error = apiError({ "retry-after-ms": "0" })
+    expect(SessionRetry.delay(1, error)).toBe(SessionRetry.RETRY_MIN_DELAY)
+  })
+
+  test("floors a zero retry-after hint", () => {
+    const error = apiError({ "retry-after": "0" })
+    expect(SessionRetry.delay(1, error)).toBe(SessionRetry.RETRY_MIN_DELAY)
+  })
+
+  test("floors sub-second retry hints", () => {
+    expect(SessionRetry.delay(1, apiError({ "retry-after-ms": "250" }))).toBe(SessionRetry.RETRY_MIN_DELAY)
+    expect(SessionRetry.delay(1, apiError({ "retry-after": "0.25" }))).toBe(SessionRetry.RETRY_MIN_DELAY)
+  })
+
+  test("caps the exponential fallback at 30 seconds even when headers are present", () => {
+    const error = apiError({ "x-request-id": "abc" })
+    const delays = Array.from({ length: 8 }, (_, index) => SessionRetry.delay(index + 1, error))
+    expect(delays).toStrictEqual([2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000])
+  })
+
+  test("jitter never waits less than the base delay", () => {
+    expect(SessionRetry.jittered(1000, 0)).toBe(1000)
+  })
+
+  test("jitter spreads retries up to the jitter fraction", () => {
+    expect(SessionRetry.jittered(1000, 1)).toBe(1000 * (1 + SessionRetry.RETRY_JITTER))
+    expect(SessionRetry.jittered(1000, 0.5)).toBe(1000 * (1 + SessionRetry.RETRY_JITTER / 2))
+  })
+
+  test("jitter stays within the runtime timer limit", () => {
+    expect(SessionRetry.jittered(SessionRetry.RETRY_MAX_DELAY, 1)).toBe(SessionRetry.RETRY_MAX_DELAY)
+  })
+
   it.instance("policy updates retry status and increments attempts", () =>
     Effect.gen(function* () {
       const sessionID = SessionID.make("session-retry-test")
@@ -112,6 +148,47 @@ describe("session.retry.delay", () => {
         attempt: 2,
         message: "boom",
       })
+    }),
+  )
+
+  // Without a budget a saturated deployment keeps a session retrying forever;
+  // the error never reaches the user.
+  it.instance("policy stops retrying once the elapsed budget is spent", () =>
+    Effect.gen(function* () {
+      const error = apiError()
+      const attempts: number[] = []
+
+      const step = yield* Schedule.toStepWithMetadata(
+        SessionRetry.policy({
+          provider: "test",
+          parse: Schema.decodeUnknownSync(SessionV1.APIError.Schema),
+          maxElapsed: 0,
+          set: (info) => Effect.sync(() => attempts.push(info.attempt)),
+        }),
+      )
+
+      yield* step(error).pipe(Effect.catchCause(() => Effect.void))
+      expect(attempts).toStrictEqual([])
+    }),
+  )
+
+  it.instance("policy keeps retrying while budget remains", () =>
+    Effect.gen(function* () {
+      const error = apiError({ "retry-after-ms": "0" })
+      const attempts: number[] = []
+
+      const step = yield* Schedule.toStepWithMetadata(
+        SessionRetry.policy({
+          provider: "test",
+          parse: Schema.decodeUnknownSync(SessionV1.APIError.Schema),
+          maxElapsed: 60_000,
+          set: (info) => Effect.sync(() => attempts.push(info.attempt)),
+        }),
+      )
+
+      yield* step(error)
+      yield* step(error)
+      expect(attempts).toStrictEqual([1, 2])
     }),
   )
 })

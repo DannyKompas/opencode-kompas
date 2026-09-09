@@ -963,7 +963,9 @@ export const layer = Layer.effect(
           messageID: input.assistantMessage.id,
         })
         ctx.needsCompaction = false
-        ctx.shouldBreak = (yield* config.get()).experimental?.continue_loop_on_deny !== true
+        const cfg = yield* config.get()
+        ctx.shouldBreak = cfg.experimental?.continue_loop_on_deny !== true
+        const rateLimit = cfg.provider?.[input.model.providerID]?.options?.rateLimit
 
         return yield* Effect.gen(function* () {
           yield* Effect.gen(function* () {
@@ -995,6 +997,7 @@ export const layer = Layer.effect(
               SessionRetry.policy({
                 provider: input.model.providerID,
                 parse,
+                maxElapsed: rateLimit?.maxElapsed,
                 set: (info) => {
                   // TODO(v2): Temporary dual-write while migrating session messages to v2 events.
                   const event = mirrorAssistant
