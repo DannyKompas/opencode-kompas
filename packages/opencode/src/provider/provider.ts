@@ -31,6 +31,7 @@ import { ModelV2 } from "@opencode-ai/core/model"
 import { ModelStatus } from "./model-status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { ProviderError } from "./error"
+import { ProviderRateLimit } from "./rate-limit"
 
 const OPENAI_HEADER_TIMEOUT_DEFAULT = 10_000
 
@@ -71,6 +72,44 @@ function wrapSSE(res: Response, ms: number, ctl: AbortController) {
     },
     async cancel(reason) {
       ctl.abort(reason)
+      await reader.cancel(reason)
+    },
+  })
+
+  return new Response(body, {
+    headers: new Headers(res.headers),
+    status: res.status,
+    statusText: res.statusText,
+  })
+}
+
+// Holds a rate-limit slot until the caller is actually finished with the
+// response. Error responses and empty bodies release right away; a streamed
+// body releases when it closes, is cancelled, or fails.
+function releaseOnSettled(res: Response, release: () => void) {
+  if (!res.body || !res.ok) {
+    release()
+    return res
+  }
+
+  const reader = res.body.getReader()
+  const body = new ReadableStream<Uint8Array>({
+    async pull(ctrl) {
+      try {
+        const part = await reader.read()
+        if (part.done) {
+          release()
+          ctrl.close()
+          return
+        }
+        ctrl.enqueue(part.value)
+      } catch (err) {
+        release()
+        throw err
+      }
+    },
+    async cancel(reason) {
+      release()
       await reader.cancel(reason)
     },
   })
@@ -1293,6 +1332,9 @@ export const layer = Layer.effect(
     const plugin = yield* Plugin.Service
     const modelsDevSvc = yield* ModelsDev.Service
     const runtimeFlags = yield* RuntimeFlags.Service
+    // resolveSDK builds a plain (non-Effect) fetch wrapper, so rate-limit
+    // logging has to hop back into the runtime through a bridge.
+    const logBridge = yield* EffectBridge.make()
 
     const state = yield* InstanceState.make<State>(() =>
       Effect.gen(function* () {
@@ -1687,8 +1729,14 @@ export const layer = Layer.effect(
         const customFetch = options["fetch"]
         const chunkTimeout = options["chunkTimeout"]
         const headerTimeout = options["headerTimeout"]
+        const rateLimit = options["rateLimit"]
         delete options["chunkTimeout"]
         delete options["headerTimeout"]
+        delete options["rateLimit"]
+
+        // Shared across every request to this provider, so a 429 seen by one
+        // subagent holds back the others instead of each rediscovering it.
+        const limiter = ProviderRateLimit.gate(model.providerID, rateLimit)
 
         options["fetch"] = async (input: any, init?: BunFetchRequestInit) => {
           const fetchFn = customFetch ?? fetch
@@ -1707,14 +1755,38 @@ export const layer = Layer.effect(
           const combined = signals.length === 0 ? null : signals.length === 1 ? signals[0] : AbortSignal.any(signals)
           if (combined) opts.signal = combined
 
+          const release = await limiter.acquire(opts.signal)
           const res = await fetchFn(input, {
             ...opts,
             // @ts-ignore see here: https://github.com/oven-sh/bun/issues/16682
             timeout: false,
-          }).finally(() => headerTimeoutCtl?.clear())
+          })
+            .catch((cause: unknown) => {
+              release()
+              throw cause
+            })
+            .finally(() => headerTimeoutCtl?.clear())
 
-          if (!chunkAbortCtl) return res
-          return wrapSSE(res, chunkTimeout, chunkAbortCtl)
+          const cooldown = limiter.observe(res.status, res.headers)
+          if (cooldown !== undefined) {
+            // Logged with the raw hints so a deployment that reports a useless
+            // `retry-after` can be spotted from the log alone.
+            logBridge.fork(
+              Effect.logWarning("provider rate limited", {
+                providerID: model.providerID,
+                modelID: model.id,
+                status: res.status,
+                cooldownMs: cooldown,
+                "retry-after": res.headers.get("retry-after") ?? undefined,
+                "retry-after-ms": res.headers.get("retry-after-ms") ?? undefined,
+              }),
+            )
+          }
+
+          const wrapped = chunkAbortCtl ? wrapSSE(res, chunkTimeout, chunkAbortCtl) : res
+          // A slot is only free once the stream is done: an open SSE response
+          // still occupies capacity on the deployment.
+          return releaseOnSettled(wrapped, release)
         }
 
         const bundledLoader = BUNDLED_PROVIDERS[model.api.npm]
