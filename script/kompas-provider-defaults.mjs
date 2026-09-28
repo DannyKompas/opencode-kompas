@@ -10,9 +10,17 @@ const DEFAULTS = {
   provider: {
     "amazon-bedrock": { whitelist: ["minimax.minimax-m2.5"] },
     azure: {
-      whitelist: ["deepseek-v4-flash", "deepseek-v4-flash-0731"],
+      whitelist: ["deepseek-v4-flash", "deepseek-v4-flash-0731", "deepseek-v4.1"],
       options: { useCompletionUrls: true, apiKey: "{env:AZURE_API_KEY}" },
       models: {
+        "deepseek-v4.1": {
+          name: "DeepSeek V4.1",
+          reasoning: true,
+          provider: {
+            npm: "@ai-sdk/openai-compatible",
+            api: "https://${AZURE_RESOURCE_NAME}.services.ai.azure.com/models",
+          },
+        },
         "deepseek-v4-flash-0731": {
           name: "DeepSeek V4 Flash (0731)",
           reasoning: true,
