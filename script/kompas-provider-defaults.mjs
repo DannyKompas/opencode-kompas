@@ -7,6 +7,8 @@ import fs from "fs"
 
 const DEFAULTS = {
   enabled_providers: ["amazon-bedrock", "azure", "litellm"],
+  // Pinned to the reviewed release; bump deliberately after re-reviewing.
+  plugin: ["@dietrichgebert/ponytail@4.10.1"],
   provider: {
     "amazon-bedrock": { whitelist: ["minimax.minimax-m2.5"] },
     azure: {
@@ -104,6 +106,14 @@ if (cfg.enabled_providers === undefined) {
   for (const id of DEFAULTS.enabled_providers) {
     if (!cfg.enabled_providers.includes(id)) cfg.enabled_providers.push(id)
   }
+}
+
+// Match plugins by package name so a version someone pinned themselves isn't
+// duplicated or overridden.
+const pluginName = (spec) => (Array.isArray(spec) ? spec[0] : spec).replace(/(.)@[^@/]*$/, "$1")
+cfg.plugin = Array.isArray(cfg.plugin) ? cfg.plugin : []
+for (const spec of DEFAULTS.plugin) {
+  if (!cfg.plugin.some((existing) => pluginName(existing) === pluginName(spec))) cfg.plugin.push(spec)
 }
 
 cfg.provider = cfg.provider ?? {}
