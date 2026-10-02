@@ -9,6 +9,10 @@
     "azure": {
       "whitelist": ["deepseek-v4-flash", "deepseek-v4-flash-0731", "deepseek-v4.1"],
       "options": { "useCompletionUrls": true, "apiKey": "{env:AZURE_API_KEY}" },
+      // Prices are USD per 1M tokens, Global Standard rates from the Azure retail
+      // prices API (prices.azure.com, "Azure Deepseek Models"). models.dev has no
+      // entry for 0731 and no cached rate for v4-flash, so without these the
+      // session cost shows $0 or ignores cache reads.
       "models": {
         "deepseek-v4.1": {
           "name": "DeepSeek V4.1",
@@ -18,9 +22,13 @@
             "api": "https://${AZURE_RESOURCE_NAME}.services.ai.azure.com/models",
           },
         },
+        "deepseek-v4-flash": {
+          "cost": { "input": 0.19, "output": 0.51, "cache_read": 0.028 },
+        },
         "deepseek-v4-flash-0731": {
           "name": "DeepSeek V4 Flash (0731)",
           "reasoning": true,
+          "cost": { "input": 0.44, "output": 1.32, "cache_read": 0.014 },
           "provider": {
             "npm": "@ai-sdk/openai-compatible",
             "api": "https://${AZURE_RESOURCE_NAME}.services.ai.azure.com/models",
@@ -36,6 +44,7 @@
         "deepseek-v4-flash": {
           "name": "DeepSeek V4 Flash",
           "reasoning": true,
+          "cost": { "input": 0.19, "output": 0.51, "cache_read": 0.028 },
           "variants": {
             "low": { "allowed_openai_params": ["reasoning_effort"] },
             "medium": { "allowed_openai_params": ["reasoning_effort"] },
@@ -46,6 +55,7 @@
         "deepseek-v4-flash-0731": {
           "name": "DeepSeek V4 Flash (0731)",
           "reasoning": true,
+          "cost": { "input": 0.44, "output": 1.32, "cache_read": 0.014 },
           "variants": {
             "low": { "allowed_openai_params": ["reasoning_effort"] },
             "medium": { "allowed_openai_params": ["reasoning_effort"] },

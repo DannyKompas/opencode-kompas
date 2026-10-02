@@ -79,7 +79,11 @@ add_to_path() {
     line_num=$(grep -n -- "$path_line" "$config_file" 2>/dev/null | cut -d: -f1 | head -1 || true)
 
     if [ -n "$line_num" ]; then
-        sed -i '' "${line_num}a\\$source_env_line" "$config_file"
+        {
+            head -n "$line_num" "$config_file"
+            echo "$source_env_line"
+            tail -n "+$((line_num + 1))" "$config_file"
+        } > "${config_file}.tmp" && mv "${config_file}.tmp" "$config_file"
         log "Added env source line to ${config_file}"
     else
         echo "" >> "$config_file"

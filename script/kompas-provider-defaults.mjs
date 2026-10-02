@@ -11,7 +11,20 @@ const DEFAULTS = {
     "amazon-bedrock": { whitelist: ["minimax.minimax-m2.5"] },
     azure: {
       whitelist: ["deepseek-v4-flash", "deepseek-v4-flash-0731", "deepseek-v4.1"],
-      options: { useCompletionUrls: true, apiKey: "{env:AZURE_API_KEY}" },
+      // The deployment answers a saturated quota with `retry-after: 1` and
+      // `retry-after-ms: 0`, neither of which is long enough for the window to
+      // reopen - taken at face value that just re-throttles it. Override the
+      // hint, and serialize so the title and build agents stop competing for
+      // the same quota.
+      options: {
+        useCompletionUrls: true,
+        apiKey: "{env:AZURE_API_KEY}",
+        rateLimit: { minDelay: 15000, cooldown: 15000, maxConcurrent: 1 },
+      },
+      // Prices are USD per 1M tokens, Global Standard rates from the Azure retail
+      // prices API (prices.azure.com, "Azure Deepseek Models"). models.dev has no
+      // entry for 0731 and no cached rate for v4-flash, so without these the
+      // session cost shows $0 or ignores cache reads.
       models: {
         "deepseek-v4.1": {
           name: "DeepSeek V4.1",
@@ -21,9 +34,13 @@ const DEFAULTS = {
             api: "https://${AZURE_RESOURCE_NAME}.services.ai.azure.com/models",
           },
         },
+        "deepseek-v4-flash": {
+          cost: { input: 0.19, output: 0.51, cache_read: 0.028 },
+        },
         "deepseek-v4-flash-0731": {
           name: "DeepSeek V4 Flash (0731)",
           reasoning: true,
+          cost: { input: 0.44, output: 1.32, cache_read: 0.014 },
           provider: {
             npm: "@ai-sdk/openai-compatible",
             api: "https://${AZURE_RESOURCE_NAME}.services.ai.azure.com/models",
@@ -41,6 +58,7 @@ const DEFAULTS = {
         "deepseek-v4-flash": {
           name: "DeepSeek V4 Flash",
           reasoning: true,
+          cost: { input: 0.19, output: 0.51, cache_read: 0.028 },
           variants: {
             low: { allowed_openai_params: ["reasoning_effort"] },
             medium: { allowed_openai_params: ["reasoning_effort"] },
@@ -51,6 +69,7 @@ const DEFAULTS = {
         "deepseek-v4-flash-0731": {
           name: "DeepSeek V4 Flash (0731)",
           reasoning: true,
+          cost: { input: 0.44, output: 1.32, cache_read: 0.014 },
           variants: {
             low: { allowed_openai_params: ["reasoning_effort"] },
             medium: { allowed_openai_params: ["reasoning_effort"] },
@@ -106,7 +125,23 @@ for (const [id, defaults] of Object.entries(DEFAULTS.provider)) {
   if (defaults.models) {
     existing.models = existing.models ?? {}
     for (const [modelID, modelDefaults] of Object.entries(defaults.models)) {
-      if (existing.models[modelID] === undefined) existing.models[modelID] = modelDefaults
+      if (existing.models[modelID] === undefined) {
+        existing.models[modelID] = modelDefaults
+        continue
+      }
+      // Model already seeded by an earlier run - fill in keys shipped since
+      // (cost, say) so existing installs pick them up too.
+      for (const [key, value] of Object.entries(modelDefaults)) {
+        if (existing.models[modelID][key] === undefined) existing.models[modelID][key] = value
+      }
+    }
+  }
+  // Same rule for options: fill in keys we've newly started shipping (rateLimit,
+  // say) without clobbering a value someone tuned for their own deployment.
+  if (defaults.options) {
+    existing.options = existing.options ?? {}
+    for (const [key, value] of Object.entries(defaults.options)) {
+      if (existing.options[key] === undefined) existing.options[key] = value
     }
   }
 }
