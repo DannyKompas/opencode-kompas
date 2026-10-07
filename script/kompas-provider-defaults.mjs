@@ -12,7 +12,7 @@ const DEFAULTS = {
   provider: {
     "amazon-bedrock": { whitelist: ["minimax.minimax-m2.5"] },
     azure: {
-      whitelist: ["deepseek-v4-flash", "deepseek-v4-flash-0731", "deepseek-v4.1"],
+      whitelist: ["deepseek-v4-flash", "deepseek-v4-flash-0731", "deepseek-v4.1-flash"],
       // The deployment answers a saturated quota with `retry-after: 1` and
       // `retry-after-ms: 0`, neither of which is long enough for the window to
       // reopen - taken at face value that just re-throttles it. Override the
@@ -28,8 +28,8 @@ const DEFAULTS = {
       // entry for 0731 and no cached rate for v4-flash, so without these the
       // session cost shows $0 or ignores cache reads.
       models: {
-        "deepseek-v4.1": {
-          name: "DeepSeek V4.1",
+        "deepseek-v4.1-flash": {
+          name: "DeepSeek V4.1 Flash",
           reasoning: true,
           provider: {
             npm: "@ai-sdk/openai-compatible",
